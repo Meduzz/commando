@@ -34,3 +34,9 @@ func (c *Command) AddFlag(flag *Flag) *Command {
 	c.Flags = append(c.Flags, flag)
 	return c
 }
+
+func (c *Command) Flag(name string, kind FlagKind, defaultValue any, description string) *Flag {
+	flag := &Flag{Name: name, Kind: kind, Default: defaultValue, Description: description}
+	c.Flags = append(c.Flags, flag)
+	return flag
+}

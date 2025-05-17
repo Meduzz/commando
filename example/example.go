@@ -11,6 +11,7 @@ func init() {
 	cmd.ChildCommand("world", handler)
 	phrase := flags.StringFlag("phrase", "world", "phrase to use in hello greeting")
 	cmd.AddFlag(phrase)
+	cmd.Flag("counter", model.FlagIntKind, 0, "a counter of greetings")
 	cmd.WithDescription("Im a static command with a child")
 
 	dynamic := &model.Command{
@@ -43,7 +44,14 @@ func handler(cmd model.ExecuteCommand) error {
 			return err
 		}
 
+		count, err := cmd.Int("counter")
+
+		if err != nil {
+			return err
+		}
+
 		println("hello", phrase)
+		println("highly manual counter:", count)
 		break
 	case "world":
 		println("hello", cmd.Name())
