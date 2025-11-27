@@ -126,16 +126,14 @@ func handlerWrapper(cmd *model.Command) func(*cobra.Command, []string) error {
 		}
 	}
 
-	if handler == nil {
+	if handler != nil {
 		return func(c *cobra.Command, s []string) error {
-			return fmt.Errorf("no handler defined for command '%s'", cmd.Name)
+			cmd := model.NewExecuteCommand(cmd, c, s)
+			return handler(cmd)
 		}
 	}
 
-	return func(c *cobra.Command, s []string) error {
-		cmd := model.NewExecuteCommand(cmd, c, s)
-		return handler(cmd)
-	}
+	return nil
 }
 
 func mergeErrors(errorz []error) error {
