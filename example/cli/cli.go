@@ -4,8 +4,8 @@ import (
 	"fmt"
 
 	"github.com/Meduzz/commando"
-	"github.com/Meduzz/commando/cli"
 	"github.com/Meduzz/commando/model"
+	"github.com/Meduzz/commando/wrap"
 )
 
 type (
@@ -15,7 +15,7 @@ type (
 )
 
 func main() {
-	cmd := cli.Example("greet", greet, cli.Flag("name", model.FlagStringKind, ""), cli.InBody(cli.Json[Greeting]()), cli.OutBody(cli.Json[Greeting]()), cli.Error())
+	cmd := wrap.Wrap("greet", greet, wrap.In(wrap.Flag("name", model.FlagStringKind, ""), wrap.Body(wrap.Json[Greeting]())), wrap.Out(wrap.Body(wrap.Json[Greeting]()), wrap.Error()))
 	commando.RegisterCommand(cmd.WithDescription("Greet a name with the provided message."))
 
 	err := commando.Execute()

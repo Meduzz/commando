@@ -1,4 +1,4 @@
-package cli
+package wrap
 
 import (
 	"encoding/json"
@@ -16,7 +16,6 @@ type (
 	Param interface {
 		Fetch(model.ExecuteCommand) (reflect.Value, error)
 		Kind() string
-		Direction() bool
 	}
 
 	Strategy interface {
@@ -31,8 +30,7 @@ type (
 	}
 
 	body struct {
-		strategy  Strategy
-		direction bool
+		strategy Strategy
 	}
 
 	errror struct{}
@@ -56,17 +54,9 @@ func Flag(name string, kind model.FlagKind, value any) Param {
 	}
 }
 
-func InBody(strategy Strategy) Param {
+func Body(strategy Strategy) Param {
 	return &body{
-		strategy:  strategy,
-		direction: true,
-	}
-}
-
-func OutBody(strategy Strategy) Param {
-	return &body{
-		strategy:  strategy,
-		direction: false,
+		strategy: strategy,
 	}
 }
 
@@ -74,20 +64,24 @@ func Error() Param {
 	return &errror{}
 }
 
-func Example(name string, target any, params ...Param) *model.Command {
+func In(params ...Param) []Param {
+	return params
+}
+
+func Out(params ...Param) []Param {
+	return params
+}
+
+func Wrap(name string, delegate any, in []Param, out []Param) *model.Command {
 	cmd := &model.Command{}
 	cmd.Name = name
 
 	// TODO assert it's a func
-	handlerValue := reflect.ValueOf(target)
+	handlerValue := reflect.ValueOf(delegate)
 
 	cmd.Name = name
 	cmd.Handler = func(ec model.ExecuteCommand) error {
-		inners := slice.Filter(params, func(p Param) bool {
-			return p.Direction()
-		})
-
-		maybePS := slice.Fold(inners, &result.Operation[[]reflect.Value]{}, func(p Param, agg *result.Operation[[]reflect.Value]) *result.Operation[[]reflect.Value] {
+		maybePS := slice.Fold(in, &result.Operation[[]reflect.Value]{}, func(p Param, agg *result.Operation[[]reflect.Value]) *result.Operation[[]reflect.Value] {
 			return result.Then(agg, func(it []reflect.Value) ([]reflect.Value, error) {
 				v, err := p.Fetch(ec)
 
@@ -105,15 +99,9 @@ func Example(name string, target any, params ...Param) *model.Command {
 			return err
 		}
 
-		outers := slice.Filter(params, func(p Param) bool {
-			return !p.Direction()
-		})
-
 		rs := handlerValue.Call(ps)
 
-		// TODO compare out arrays length
-
-		for i, p := range outers {
+		for i, p := range out {
 			if p.Kind() == "body" {
 				exe, ok := p.(*body)
 				actual := rs[i].Interface()
@@ -150,14 +138,12 @@ func Example(name string, target any, params ...Param) *model.Command {
 		return nil
 	}
 
-	slice.ForEach(params, func(p Param) {
-		if p.Direction() {
-			// only look at in params
-			flag, ok := p.(*flag)
+	slice.ForEach(in, func(p Param) {
+		// only look at in params
+		flag, ok := p.(*flag)
 
-			if ok {
-				cmd.Flag(flag.name, flag.kind, flag.defaultValue, "")
-			}
+		if ok {
+			cmd.Flag(flag.name, flag.kind, flag.defaultValue, "")
 		}
 	})
 
@@ -207,10 +193,6 @@ func (f *flag) Kind() string {
 	return "flag"
 }
 
-func (f *flag) Direction() bool {
-	return true
-}
-
 func (b *body) Fetch(cmd model.ExecuteCommand) (reflect.Value, error) {
 	bs, err := io.ReadAll(os.Stdin)
 
@@ -231,20 +213,12 @@ func (b *body) Kind() string {
 	return "body"
 }
 
-func (b *body) Direction() bool {
-	return b.direction
-}
-
 func (e *errror) Fetch(cmd model.ExecuteCommand) (reflect.Value, error) {
 	return blank, fmt.Errorf("fetch is not implemented for error")
 }
 
 func (e *errror) Kind() string {
 	return "error"
-}
-
-func (e *errror) Direction() bool {
-	return false
 }
 
 func Json[T any]() Strategy {
