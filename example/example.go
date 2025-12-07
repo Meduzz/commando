@@ -52,10 +52,8 @@ func handler(cmd model.ExecuteCommand) error {
 
 		println("hello", phrase)
 		println("highly manual counter:", count)
-		break
 	case "world":
 		println("hello", cmd.Name())
-		break
 	case "dynamic":
 		phrase, err := cmd.String("phrase")
 
@@ -64,7 +62,6 @@ func handler(cmd model.ExecuteCommand) error {
 		}
 
 		println("hello", phrase)
-		break
 	}
 
 	return nil
