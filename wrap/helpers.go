@@ -42,10 +42,6 @@ type (
 	stringStrategy struct{}
 )
 
-var (
-	blank = reflect.ValueOf(nil)
-)
-
 func Flag(name string, kind model.FlagKind, value any) Param {
 	return &flag{
 		name:         name,
@@ -76,8 +72,11 @@ func Wrap(name string, delegate any, in []Param, out []Param) *model.Command {
 	cmd := &model.Command{}
 	cmd.Name = name
 
-	// TODO assert it's a func
 	handlerValue := reflect.ValueOf(delegate)
+
+	if handlerValue.Kind() != reflect.Func {
+		panic("delegate is not a function")
+	}
 
 	cmd.Name = name
 	cmd.Handler = func(ec model.ExecuteCommand) error {
@@ -151,12 +150,13 @@ func Wrap(name string, delegate any, in []Param, out []Param) *model.Command {
 }
 
 func (f *flag) Fetch(cmd model.ExecuteCommand) (reflect.Value, error) {
+	// TODO rely on flag converter registry
 	switch f.kind {
 	case model.FlagInt64Kind:
 		value, err := cmd.Int64(f.name)
 
 		if err != nil {
-			return blank, err
+			return reflect.ValueOf(value), err
 		}
 
 		return reflect.ValueOf(value), nil
@@ -164,7 +164,7 @@ func (f *flag) Fetch(cmd model.ExecuteCommand) (reflect.Value, error) {
 		value, err := cmd.Int(f.name)
 
 		if err != nil {
-			return blank, err
+			return reflect.ValueOf(value), err
 		}
 
 		return reflect.ValueOf(value), nil
@@ -172,7 +172,7 @@ func (f *flag) Fetch(cmd model.ExecuteCommand) (reflect.Value, error) {
 		value, err := cmd.Bool(f.name)
 
 		if err != nil {
-			return blank, err
+			return reflect.ValueOf(value), err
 		}
 
 		return reflect.ValueOf(value), nil
@@ -180,13 +180,13 @@ func (f *flag) Fetch(cmd model.ExecuteCommand) (reflect.Value, error) {
 		value, err := cmd.String(f.name)
 
 		if err != nil {
-			return blank, err
+			return reflect.ValueOf(value), err
 		}
 
 		return reflect.ValueOf(value), nil
 	}
 
-	return blank, fmt.Errorf("unknown flagkind: %s", f.kind)
+	return reflect.ValueOf(nil), fmt.Errorf("unknown flagkind: %s", f.kind)
 }
 
 func (f *flag) Kind() string {
@@ -195,6 +195,7 @@ func (f *flag) Kind() string {
 
 func (b *body) Fetch(cmd model.ExecuteCommand) (reflect.Value, error) {
 	bs, err := io.ReadAll(os.Stdin)
+	blank := reflect.ValueOf(nil)
 
 	if err != nil {
 		return blank, err
@@ -214,7 +215,7 @@ func (b *body) Kind() string {
 }
 
 func (e *errror) Fetch(cmd model.ExecuteCommand) (reflect.Value, error) {
-	return blank, fmt.Errorf("fetch is not implemented for error")
+	return reflect.ValueOf(nil), fmt.Errorf("fetch is not implemented for error")
 }
 
 func (e *errror) Kind() string {

@@ -34,7 +34,7 @@ With cobra commands there's some plumbing, I want to get rid of it.
 
 **How?**
 
-A DSL, thathat generate straight into the libs registry.
+A DSL, that generate straight into the libs registry.
 
 **Todo**
 
