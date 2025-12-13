@@ -1,5 +1,7 @@
 package model
 
+import "github.com/spf13/cobra"
+
 type (
 	Command struct {
 		Name        string     `json:"name"`
@@ -10,7 +12,7 @@ type (
 		Children    []*Command `json:"children,omitempty"`
 	}
 
-	Handler func(ExecuteCommand) error
+	Handler func(*cobra.Command, []string) error
 )
 
 func (c *Command) ChildCommand(name string, handler Handler) *Command {

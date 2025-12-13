@@ -15,7 +15,7 @@ type (
 )
 
 func main() {
-	cmd := wrap.Wrap("greet", greet, wrap.In(wrap.Flag("name", model.FlagStringKind, ""), wrap.Body(wrap.Json[Greeting]())), wrap.Out(wrap.Body(wrap.Json[Greeting]()), wrap.Error()))
+	cmd := wrap.Wrap("greet", greet, wrap.In(wrap.Flag("name", model.FlagStringKind, "", "The name to greet"), wrap.Body(wrap.Json[Greeting]())), wrap.Out(wrap.Body(wrap.Json[Greeting]()), wrap.Error()))
 	commando.RegisterCommand(cmd.WithDescription("Greet a name with the provided message."))
 
 	err := commando.Execute()

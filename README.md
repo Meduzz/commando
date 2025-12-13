@@ -39,4 +39,3 @@ A DSL, that generate straight into the libs registry.
 **Todo**
 
 * Not sure this goal was achieved yet. Time will tell.
-* The read flags part (ExecuteCommand) also needs a converter abstraction most likely.

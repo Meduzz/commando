@@ -1,15 +1,15 @@
 package commando
 
 import (
-	"strings"
 	"testing"
 
 	"github.com/Meduzz/commando/flags"
 	"github.com/Meduzz/commando/model"
+	"github.com/spf13/cobra"
 )
 
 func TestRegisterCommand(t *testing.T) {
-	cmd := &model.Command{Name: "test", Handler: func(model.ExecuteCommand) error { return nil }}
+	cmd := &model.Command{Name: "test", Handler: func(c *cobra.Command, s []string) error { return nil }}
 	RegisterCommand(cmd)
 
 	if len(commands) != 1 || commands[0].Name != "test" {
@@ -18,7 +18,7 @@ func TestRegisterCommand(t *testing.T) {
 }
 
 func TestRegisterHandler(t *testing.T) {
-	RegisterHandler("test", func(model.ExecuteCommand) error { return nil })
+	RegisterHandler("test", func(c *cobra.Command, s []string) error { return nil })
 
 	if len(handlers) != 1 || handlers[0].Name != "test" {
 		t.Errorf("Expected handler to be registered")
@@ -56,15 +56,5 @@ func TestAsCobra(t *testing.T) {
 
 	if flag == nil || flag.DefValue != "1" {
 		t.Errorf("Expected flag to be registered with correct default value")
-	}
-
-	err = c.RunE(c, []string{"child1"})
-
-	if err == nil {
-		t.Errorf("Expected error from Execute, but got none")
-	}
-
-	if !strings.Contains(err.Error(), "unkown handler named 'asdf'") {
-		t.Errorf("Expected specific error message about no handler, but got: %v", err)
 	}
 }

@@ -2,12 +2,13 @@ package flags
 
 import (
 	"github.com/Meduzz/commando/model"
-	"github.com/spf13/pflag"
+	"github.com/spf13/cobra"
 )
 
 type (
-	Converter interface {
+	FlagVisitor interface {
 		Kind() model.FlagKind
-		Convert(*model.Flag, *pflag.FlagSet) error
+		Setup(*model.Flag, *cobra.Command)
+		Runtime(string, *cobra.Command) (any, error)
 	}
 )

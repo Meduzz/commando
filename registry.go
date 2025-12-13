@@ -12,7 +12,7 @@ import (
 
 var commands = make([]*model.Command, 0)
 var handlers = make([]*HandlerSpec, 0)
-var converters = make([]flags.Converter, 0)
+var visitors = make([]flags.FlagVisitor, 0)
 
 type (
 	HandlerSpec struct {
@@ -29,8 +29,14 @@ func RegisterHandler(name string, handler model.Handler) {
 	handlers = append(handlers, &HandlerSpec{Name: name, Handler: handler})
 }
 
-func RegisterConverter(converter flags.Converter) {
-	converters = append(converters, converter)
+func RegisterVisitor(visitor flags.FlagVisitor) {
+	visitors = append(visitors, visitor)
+}
+
+func VisitorByKind(kind model.FlagKind) flags.FlagVisitor {
+	return slice.Head(slice.Filter(visitors, func(v flags.FlagVisitor) bool {
+		return v.Kind() == kind
+	}))
 }
 
 func Execute() error {
@@ -62,24 +68,19 @@ func asCobra(cmd *model.Command) (*cobra.Command, error) {
 
 	c.Use = cmd.Name
 	c.Short = cmd.Description
-	c.RunE = handlerWrapper(cmd)
+	c.RunE = handlerForCommand(cmd)
 
 	errorz := slice.Map(cmd.Flags, func(f *model.Flag) error {
-		matches := slice.Filter(converters, func(c flags.Converter) bool {
-			return c.Kind() == f.Kind
-		})
+		visitor := VisitorByKind(f.Kind)
 
-		match := slice.Head(matches)
-
-		var err error
-
-		if match != nil {
-			err = match.Convert(f, c.Flags())
-		} else {
-			err = fmt.Errorf("no flag converter found for FlagKind %s (%s --%s) was found", f.Kind, cmd.Name, f.Name)
+		if visitor == nil {
+			return fmt.Errorf("no visitor for flag kind: %s", f.Kind)
 		}
 
-		return err
+		// TODO opportunity to return error
+		visitor.Setup(f, c)
+
+		return nil
 	})
 
 	err := mergeErrors(errorz)
@@ -107,29 +108,18 @@ func asCobra(cmd *model.Command) (*cobra.Command, error) {
 	return c, nil
 }
 
-func handlerWrapper(cmd *model.Command) func(*cobra.Command, []string) error {
-	var handler model.Handler = cmd.Handler
-
-	if cmd.HandlerRef != "" {
-		matches := slice.Filter(handlers, func(h *HandlerSpec) bool {
-			return h.Name == cmd.HandlerRef
-		})
-
-		match := slice.Head(matches)
-
-		if match == nil {
-			return func(c *cobra.Command, s []string) error {
-				return fmt.Errorf("unkown handler named '%s'", cmd.HandlerRef)
-			}
-		} else {
-			handler = match.Handler
-		}
+func handlerForCommand(cmd *model.Command) model.Handler {
+	if cmd.Handler != nil {
+		return cmd.Handler
 	}
 
-	if handler != nil {
-		return func(c *cobra.Command, s []string) error {
-			cmd := model.NewExecuteCommand(cmd, c, s)
-			return handler(cmd)
+	if cmd.HandlerRef != "" {
+		match := slice.Head(slice.Filter(handlers, func(h *HandlerSpec) bool {
+			return h.Name == cmd.HandlerRef
+		}))
+
+		if match != nil {
+			return match.Handler
 		}
 	}
 

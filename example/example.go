@@ -4,6 +4,7 @@ import (
 	"github.com/Meduzz/commando"
 	"github.com/Meduzz/commando/flags"
 	"github.com/Meduzz/commando/model"
+	"github.com/spf13/cobra"
 )
 
 func init() {
@@ -35,16 +36,16 @@ func main() {
 	}
 }
 
-func handler(cmd model.ExecuteCommand) error {
-	switch cmd.Name() {
+func handler(cmd *cobra.Command, args []string) error {
+	switch cmd.Use {
 	case "hello":
-		phrase, err := cmd.String("phrase")
+		phrase, err := cmd.Flags().GetString("phrase")
 
 		if err != nil {
 			return err
 		}
 
-		count, err := cmd.Int("counter")
+		count, err := cmd.Flags().GetInt("counter")
 
 		if err != nil {
 			return err
@@ -53,9 +54,9 @@ func handler(cmd model.ExecuteCommand) error {
 		println("hello", phrase)
 		println("highly manual counter:", count)
 	case "world":
-		println("hello", cmd.Name())
+		println("hello", cmd.Use)
 	case "dynamic":
-		phrase, err := cmd.String("phrase")
+		phrase, err := cmd.Flags().GetString("phrase")
 
 		if err != nil {
 			return err
