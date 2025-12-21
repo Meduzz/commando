@@ -12,7 +12,7 @@ var (
 	_ CommandBuilder = &commandBuilder{}
 )
 
-func Builder(name string, handler BuilderFunc) *model.Command {
+func Command(name string, handler CommandBuilderFunc) *model.Command {
 	cb := NewCommandBuilder(name)
 	handler(cb)
 
@@ -42,7 +42,7 @@ func (c *commandBuilder) HandlerRef(handlerRef string) CommandBuilder {
 	return c
 }
 
-func (c *commandBuilder) SubCommand(name string, builder BuilderFunc) CommandBuilder {
+func (c *commandBuilder) SubCommand(name string, builder CommandBuilderFunc) CommandBuilder {
 	cmd := NewCommandBuilder(name)
 	builder(cmd)
 	c.cmd.Children = append(c.cmd.Children, cmd.build())

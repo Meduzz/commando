@@ -4,8 +4,9 @@ import (
 	"fmt"
 
 	"github.com/Meduzz/commando"
+	"github.com/Meduzz/commando/delegate"
 	"github.com/Meduzz/commando/model"
-	"github.com/Meduzz/commando/wrap"
+	"github.com/Meduzz/commando/registry"
 )
 
 type (
@@ -15,8 +16,8 @@ type (
 )
 
 func main() {
-	cmd := wrap.Wrap("greet", greet, wrap.In(wrap.Flag("name", model.FlagStringKind, "", "The name to greet"), wrap.Body(wrap.Json[Greeting]())), wrap.Out(wrap.Body(wrap.Json[Greeting]()), wrap.Error()))
-	commando.RegisterCommand(cmd.WithDescription("Greet a name with the provided message."))
+	cmd := delegate.DelegateCommand("greet", greet, delegate.In(delegate.Flag("name", model.FlagStringKind, "", "The name to greet"), delegate.Body(delegate.Json[Greeting]())), delegate.Out(delegate.Body(delegate.Json[Greeting]()), delegate.Error()))
+	registry.RegisterCommand(cmd.WithDescription("Greet a name with the provided message."))
 
 	err := commando.Execute()
 

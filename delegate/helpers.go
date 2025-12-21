@@ -1,4 +1,4 @@
-package wrap
+package delegate
 
 import (
 	"encoding/json"
@@ -7,32 +7,21 @@ import (
 	"os"
 	"reflect"
 
-	"github.com/Meduzz/commando"
 	"github.com/Meduzz/commando/model"
+	"github.com/Meduzz/commando/registry"
 	"github.com/Meduzz/helper/fp/result"
 	"github.com/Meduzz/helper/fp/slice"
+	"github.com/Meduzz/helper/utilz"
 	"github.com/spf13/cobra"
 )
 
 type (
-	ParamKind string
-
-	Param interface {
-		Fetch(*cobra.Command) (any, error)
-		Kind() ParamKind
-	}
-
-	Strategy interface {
-		Read([]byte) (any, error)
-		Write(any) ([]byte, error)
-	}
-
 	flag struct {
 		model.Flag
 	}
 
 	body struct {
-		strategy Strategy
+		strategy model.Strategy
 	}
 
 	errror struct{}
@@ -42,15 +31,14 @@ type (
 	}
 
 	stringStrategy struct{}
+
+	env struct {
+		name  string
+		value string
+	}
 )
 
-var (
-	FLAG  = ParamKind("flag")
-	BODY  = ParamKind("body")
-	ERROR = ParamKind("error")
-)
-
-func Flag(name string, kind model.FlagKind, value any, description string) Param {
+func Flag(name string, kind model.FlagKind, value any, description string) model.Param {
 	return &flag{
 		Flag: model.Flag{
 			Name:    name,
@@ -60,25 +48,32 @@ func Flag(name string, kind model.FlagKind, value any, description string) Param
 	}
 }
 
-func Body(strategy Strategy) Param {
+func Env(name, value string) model.Param {
+	return &env{
+		name:  name,
+		value: value,
+	}
+}
+
+func Body(strategy model.Strategy) model.Param {
 	return &body{
 		strategy: strategy,
 	}
 }
 
-func Error() Param {
+func Error() model.Param {
 	return &errror{}
 }
 
-func In(params ...Param) []Param {
+func In(params ...model.Param) []model.Param {
 	return params
 }
 
-func Out(params ...Param) []Param {
+func Out(params ...model.Param) []model.Param {
 	return params
 }
 
-func Wrap(name string, delegate any, in []Param, out []Param) *model.Command {
+func DelegateCommand(name string, delegate any, in []model.Param, out []model.Param) *model.Command {
 	cmd := &model.Command{}
 	cmd.Name = name
 
@@ -88,9 +83,18 @@ func Wrap(name string, delegate any, in []Param, out []Param) *model.Command {
 		panic("delegate is not a function")
 	}
 
-	cmd.Name = name
+	HandlerRef(cmd, &model.HandlerRef{
+		Delegate: delegate,
+		In:       in,
+		Out:      out,
+	})
+
+	return cmd
+}
+
+func HandlerRef(cmd *model.Command, ref *model.HandlerRef) {
 	cmd.Handler = func(c *cobra.Command, args []string) error {
-		maybePS := slice.Fold(in, &result.Operation[[]reflect.Value]{}, func(p Param, agg *result.Operation[[]reflect.Value]) *result.Operation[[]reflect.Value] {
+		maybePS := slice.Fold(ref.In, &result.Operation[[]reflect.Value]{}, func(p model.Param, agg *result.Operation[[]reflect.Value]) *result.Operation[[]reflect.Value] {
 			return result.Then(agg, func(it []reflect.Value) ([]reflect.Value, error) {
 				v, err := p.Fetch(c)
 
@@ -108,10 +112,11 @@ func Wrap(name string, delegate any, in []Param, out []Param) *model.Command {
 			return err
 		}
 
+		handlerValue := reflect.ValueOf(ref.Delegate)
 		rs := handlerValue.Call(ps)
 
-		for i, p := range out {
-			if p.Kind() == BODY {
+		for i, p := range ref.Out {
+			if p.Kind() == model.BODY {
 				exe, ok := p.(*body)
 				actual := rs[i].Interface()
 
@@ -130,7 +135,7 @@ func Wrap(name string, delegate any, in []Param, out []Param) *model.Command {
 				if err != nil {
 					return err
 				}
-			} else if p.Kind() == ERROR {
+			} else if p.Kind() == model.ERROR {
 				actual := rs[i]
 
 				if !actual.IsNil() {
@@ -147,9 +152,9 @@ func Wrap(name string, delegate any, in []Param, out []Param) *model.Command {
 		return nil
 	}
 
-	slice.ForEach(slice.Filter(in, func(p Param) bool {
-		return p.Kind() == FLAG
-	}), func(p Param) {
+	slice.ForEach(slice.Filter(ref.In, func(p model.Param) bool {
+		return p.Kind() == model.FLAG
+	}), func(p model.Param) {
 		// only look at in params
 		flag, ok := p.(*flag)
 
@@ -157,12 +162,10 @@ func Wrap(name string, delegate any, in []Param, out []Param) *model.Command {
 			cmd.AddFlag(&flag.Flag)
 		}
 	})
-
-	return cmd
 }
 
 func (f *flag) Fetch(cmd *cobra.Command) (any, error) {
-	visitor := commando.VisitorByKind(f.Flag.Kind)
+	visitor := registry.VisitorByKind(f.Flag.Kind)
 
 	if visitor != nil {
 		return visitor.Runtime(f.Flag.Name, cmd)
@@ -171,8 +174,8 @@ func (f *flag) Fetch(cmd *cobra.Command) (any, error) {
 	return nil, fmt.Errorf("unknown FlagKind: %s", f.Flag.Kind)
 }
 
-func (f *flag) Kind() ParamKind {
-	return FLAG
+func (f *flag) Kind() model.ParamKind {
+	return model.FLAG
 }
 
 func (b *body) Fetch(cmd *cobra.Command) (any, error) {
@@ -185,19 +188,19 @@ func (b *body) Fetch(cmd *cobra.Command) (any, error) {
 	return b.strategy.Read(bs)
 }
 
-func (b *body) Kind() ParamKind {
-	return BODY
+func (b *body) Kind() model.ParamKind {
+	return model.BODY
 }
 
 func (e *errror) Fetch(cmd *cobra.Command) (any, error) {
 	return nil, fmt.Errorf("fetch is not implemented for error")
 }
 
-func (e *errror) Kind() ParamKind {
-	return ERROR
+func (e *errror) Kind() model.ParamKind {
+	return model.ERROR
 }
 
-func Json[T any]() Strategy {
+func Json[T any]() model.Strategy {
 	return &jsonStrategy{
 		factory: func() any { return new(T) },
 	}
@@ -214,7 +217,7 @@ func (j *jsonStrategy) Write(target any) ([]byte, error) {
 	return json.Marshal(target)
 }
 
-func String() Strategy {
+func String() model.Strategy {
 	return &stringStrategy{}
 }
 
@@ -230,4 +233,14 @@ func (s *stringStrategy) Write(target any) ([]byte, error) {
 	}
 
 	return []byte(it), nil
+}
+
+func (e *env) Kind() model.ParamKind {
+	return model.ENV
+}
+
+func (e *env) Fetch(cmd *cobra.Command) (any, error) {
+	val := utilz.Env(e.name, e.value)
+
+	return val, nil
 }

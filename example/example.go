@@ -4,11 +4,12 @@ import (
 	"github.com/Meduzz/commando"
 	"github.com/Meduzz/commando/flags"
 	"github.com/Meduzz/commando/model"
+	"github.com/Meduzz/commando/registry"
 	"github.com/spf13/cobra"
 )
 
 func init() {
-	cmd := commando.Command("hello", handler)
+	cmd := model.CreateCommand("hello", handler)
 	cmd.ChildCommand("world", handler)
 	phrase := flags.StringFlag("phrase", "world", "phrase to use in hello greeting")
 	cmd.AddFlag(phrase)
@@ -24,8 +25,8 @@ func init() {
 		},
 	}
 
-	commando.RegisterCommand(dynamic)
-	commando.RegisterHandler("super-advanced", handler)
+	registry.RegisterCommand(dynamic)
+	registry.RegisterHandler("super-advanced", handler)
 }
 
 func main() {

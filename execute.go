@@ -4,45 +4,17 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/Meduzz/commando/flags"
+	"github.com/Meduzz/commando/delegate"
 	"github.com/Meduzz/commando/model"
+	"github.com/Meduzz/commando/registry"
 	"github.com/Meduzz/helper/fp/slice"
 	"github.com/spf13/cobra"
 )
 
-var commands = make([]*model.Command, 0)
-var handlers = make([]*HandlerSpec, 0)
-var visitors = make([]flags.FlagVisitor, 0)
-
-type (
-	HandlerSpec struct {
-		Name    string
-		Handler model.Handler
-	}
-)
-
-func RegisterCommand(cmd *model.Command) {
-	commands = append(commands, cmd)
-}
-
-func RegisterHandler(name string, handler model.Handler) {
-	handlers = append(handlers, &HandlerSpec{Name: name, Handler: handler})
-}
-
-func RegisterVisitor(visitor flags.FlagVisitor) {
-	visitors = append(visitors, visitor)
-}
-
-func VisitorByKind(kind model.FlagKind) flags.FlagVisitor {
-	return slice.Head(slice.Filter(visitors, func(v flags.FlagVisitor) bool {
-		return v.Kind() == kind
-	}))
-}
-
 func Execute() error {
 	root := &cobra.Command{}
 
-	errorz := slice.Map(commands, func(cmd *model.Command) error {
+	errorz := slice.Map(registry.Commands(), func(cmd *model.Command) error {
 		c, err := asCobra(cmd)
 
 		if err != nil {
@@ -68,10 +40,10 @@ func asCobra(cmd *model.Command) (*cobra.Command, error) {
 
 	c.Use = cmd.Name
 	c.Short = cmd.Description
-	c.RunE = handlerForCommand(cmd)
+	handlerForCommand(cmd, c)
 
 	errorz := slice.Map(cmd.Flags, func(f *model.Flag) error {
-		visitor := VisitorByKind(f.Kind)
+		visitor := registry.VisitorByKind(f.Kind)
 
 		if visitor == nil {
 			return fmt.Errorf("no visitor for flag kind: %s", f.Kind)
@@ -108,22 +80,22 @@ func asCobra(cmd *model.Command) (*cobra.Command, error) {
 	return c, nil
 }
 
-func handlerForCommand(cmd *model.Command) model.Handler {
-	if cmd.Handler != nil {
-		return cmd.Handler
-	}
-
+func handlerForCommand(cmd *model.Command, real *cobra.Command) {
 	if cmd.HandlerRef != "" {
-		match := slice.Head(slice.Filter(handlers, func(h *HandlerSpec) bool {
-			return h.Name == cmd.HandlerRef
-		}))
+		match := registry.HandlerByName(cmd.HandlerRef)
 
 		if match != nil {
-			return match.Handler
+			if match.Handler != nil {
+				cmd.Handler = match.Handler
+			} else if match.Delegate != nil {
+				delegate.HandlerRef(cmd, match.Delegate)
+			}
 		}
 	}
 
-	return nil
+	if cmd.Handler != nil {
+		real.RunE = cmd.Handler
+	}
 }
 
 func mergeErrors(errorz []error) error {
@@ -138,5 +110,4 @@ func mergeErrors(errorz []error) error {
 
 		return errors.Join(agg, e)
 	})
-
 }
